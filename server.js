@@ -1,39 +1,35 @@
-import express from "express";
-import cors from "cors";
-import fetch from "node-fetch";
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const path = require('path');
 
 const app = express();
-app.use(cors());
-
-// Health check (Render ke liye)
-app.get("/healthz", (req, res) => {
-  res.send("ok");
-});
-
-// Root test
-app.get("/", (req, res) => {
-  res.send("🚀 Video Downloader Proxy is Running!");
-});
-
-// Download proxy route
-app.get("/download", async (req, res) => {
-  const videoUrl = req.query.url;
-  if (!videoUrl) {
-    return res.status(400).send("❌ Video URL missing!");
-  }
-
-  try {
-    const response = await fetch(videoUrl);
-    if (!response.ok) throw new Error("Fetch failed");
-
-    res.setHeader("Content-Type", "video/mp4");
-    response.body.pipe(res);
-  } catch (err) {
-    console.error("Download error:", err);
-    res.status(500).send("❌ Failed to fetch video");
-  }
-});
-
-// Port for Render
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+
+// API URL
+const externalApiUrl = 'https://api.pexels.com/v1/';
+
+// Static files (HTML, CSS, JS) serve karne ke liye
+app.use(express.static(__dirname));
+
+// Proxy setup for Pexels API
+app.use('/api', createProxyMiddleware({
+  target: externalApiUrl,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api': '',
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    // API key ko header me add karein, jise hum Render ke environment variable se le rahe hain
+    proxyReq.setHeader('Authorization', process.env.PEXELS_API_KEY);
+  }
+}));
+
+// Route to serve your main HTML file
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'deepseek_html_20250821_53126d (2).html'));
+});
+
+// Server ko start karein
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
